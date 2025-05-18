@@ -1,65 +1,56 @@
-# Flask server
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify
+from flask_cors import CORS
 import json
-import random
-import os
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__)
+CORS(app)
+GRAPH_FILE = "data/synonym_graph.json"
+MAX_FIRST_DEGREE = 10
+MAX_SECOND_DEGREE = 5
 
-with open("data/synonym_graph.json", "r", encoding="utf-8") as f:
-    graph_data = json.load(f)
+# Load graph at startup
+with open(GRAPH_FILE, "r", encoding="utf-8") as f:
+    data = json.load(f)
+#
+#@app.route("/")
+#def hello():
+#    return "hello world"
+@app.route("/first-lemma")
+def get_first_lemma():
+    lemma_id, lemma = next(iter(data.items()))
 
-# Precompute index for easy lookups
-lemma_index = {lemma["id"]: lemma for lemma in graph_data.values()}
-term_to_lemmas = {}
-for lemma in graph_data.values():
-    term_to_lemmas.setdefault(lemma["term"].lower(), []).append(lemma)
+    result = {
+        "id": lemma["id"],
+        "term": lemma["term"],
+        "part_of_speech": lemma["part_of_speech"],
+        "definition": lemma["definition"],
+        "synonyms": []
+    }
 
-@app.route('/')
-def index():
-    return send_from_directory('static', 'index.html')
+    for sid in lemma.get("synonyms", [])[:MAX_FIRST_DEGREE]:
+        if sid in data:
+            first_degree_lemma = data[sid]
 
-@app.route('/random-lemma')
-def random_lemma():
-    center_lemma = random.choice(list(graph_data.values()))
-    first_degree = []
+            nested = {
+                "id": first_degree_lemma["id"],
+                "term": first_degree_lemma["term"],
+                "part_of_speech": first_degree_lemma["part_of_speech"],
+                "definition": first_degree_lemma["definition"],
+                "synonyms": []
+            }
 
-    for syn in center_lemma["synonyms"]:
-        if syn in term_to_lemmas:
-            first_degree.extend(term_to_lemmas[syn])
+            for ssid in first_degree_lemma.get("synonyms", [])[:MAX_SECOND_DEGREE]:
+                if ssid in data and ssid != lemma_id:
+                    second_degree_lemma = data[ssid]
+                    nested["synonyms"].append({
+                        "id": second_degree_lemma["id"],
+                        "term": second_degree_lemma["term"],
+                        "part_of_speech": second_degree_lemma["part_of_speech"],
+                        "definition": second_degree_lemma["definition"]
+                    })
 
-    second_degree = []
-    for lemma in first_degree:
-        for syn in lemma["synonyms"]:
-            if syn in term_to_lemmas:
-                second_degree.extend(term_to_lemmas[syn])
+            result["synonyms"].append(nested)
+    return jsonify(result)
 
-    return jsonify({
-        "center": center_lemma,
-        "first_degree": first_degree,
-        "second_degree": second_degree
-    })
-
-@app.route('/first-lemma')
-def first_lemma():
-    first_lemma = next(iter(graph_data.values()))
-    first_degree = []
-
-    for syn_id in first_lemma["synonyms"]:
-        if syn_id in graph_data:
-            first_degree.append(graph_data[syn_id])
-
-    second_degree = []
-    for lemma in first_degree:
-        for syn_id in lemma["synonyms"]:
-            if syn_id in graph_data:
-                second_degree.append(graph_data[syn_id])
-
-    return jsonify({
-        "center": first_lemma,
-        "first_degree": first_degree,
-        "second_degree": second_degree
-    })
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)

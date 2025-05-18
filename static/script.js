@@ -1,0 +1,463 @@
+    // Graph data
+    const nodes = [
+      {"id": "term", "index": 0},
+      {"id": "word", "index": 1},
+      {"id": "name", "index": 2},
+      {"id": "expression", "index": 3},
+      {"id": "title", "index": 4},
+      {"id": "label", "index": 5},
+      {"id": "phrase", "index": 6},
+      {"id": "denomination", "index": 7},
+      {"id": "designation", "index": 8},
+      {"id": "appellation", "index": 9},
+      {"id": "locution", "index": 10}
+    ];
+    
+    const links = [
+      {"source": 0, "target": 1},
+      {"source": 0, "target": 2},
+      {"source": 0, "target": 3},
+      {"source": 0, "target": 4},
+      {"source": 0, "target": 5},
+      {"source": 0, "target": 6},
+      {"source": 0, "target": 7},
+      {"source": 0, "target": 8},
+      {"source": 0, "target": 9},
+      {"source": 0, "target": 10},
+      {"source": 1, "target": 0},
+      {"source": 1, "target": 2},
+      {"source": 1, "target": 3},
+      {"source": 1, "target": 8},
+      {"source": 1, "target": 9},
+      {"source": 1, "target": 10},
+      {"source": 2, "target": 4},
+      {"source": 2, "target": 8},
+      {"source": 2, "target": 9},
+      {"source": 2, "target": 0},
+      {"source": 2, "target": 7},
+      {"source": 3, "target": 6},
+      {"source": 3, "target": 1},
+      {"source": 3, "target": 0},
+      {"source": 4, "target": 2},
+      {"source": 4, "target": 8},
+      {"source": 4, "target": 0},
+      {"source": 4, "target": 7},
+      {"source": 4, "target": 9},
+      {"source": 6, "target": 3},
+      {"source": 6, "target": 10},
+      {"source": 8, "target": 2},
+      {"source": 8, "target": 4},
+      {"source": 8, "target": 5},
+      {"source": 8, "target": 7},
+      {"source": 9, "target": 2},
+      {"source": 9, "target": 0},
+      {"source": 9, "target": 4},
+      {"source": 9, "target": 8},
+      {"source": 10, "target": 3},
+      {"source": 10, "target": 0},
+      {"source": 10, "target": 6},
+    ];
+
+    // Three.js setup
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    camera.position.z = 300;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    document.getElementById('container').appendChild(renderer.domElement);
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    });
+
+    // Setup lighting
+    const ambientLight = new THREE.AmbientLight(0x404040);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(1, 1, 1);
+    scene.add(directionalLight);
+
+    // Prepare materials
+    const nodeMaterial = new THREE.MeshLambertMaterial({ color: 0x6495ED });
+    const linkMaterial = new THREE.LineBasicMaterial({ color: 0xAAAAAA, transparent: true, opacity: 0.5 });
+    const highlightMaterial = new THREE.MeshLambertMaterial({ color: 0xFF4500 });
+    const centerNodeMaterial = new THREE.MeshLambertMaterial({ color: 0x00FF00 });
+
+    // Create node objects
+    const nodeObjects = [];
+    const nodeLabels = [];
+    const nodeGroup = new THREE.Group();
+    
+    // Create text sprite function
+    function createTextSprite(text, color = '#ffffff') {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      const fontSize = text === "term" ? 36 : 24;
+      
+      context.font = `Bold ${fontSize}px Arial`;
+      
+      // Get text width
+      const textWidth = context.measureText(text).width;
+      const textHeight = fontSize;
+      
+      // Set canvas size with padding
+      canvas.width = textWidth + 20;
+      canvas.height = textHeight + 20;
+      
+      // Fill background with node color
+      context.fillStyle = color;
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw text
+      context.font = `Bold ${fontSize}px Arial`;
+      context.fillStyle = '#ffffff';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(text, canvas.width / 2, canvas.height / 2);
+      
+      // Create texture and sprite
+      const texture = new THREE.Texture(canvas);
+      texture.needsUpdate = true;
+      
+      const material = new THREE.SpriteMaterial({ map: texture });
+      const sprite = new THREE.Sprite(material);
+      
+      // Scale sprite based on text size
+      const scaleFactor = text === "term" ? 10 : 7;
+      sprite.scale.set(canvas.width / scaleFactor, canvas.height / scaleFactor, 1);
+      
+      return sprite;
+    }
+    
+    nodes.forEach(node => {
+      // Random initial position
+      const x = Math.random() * 200 - 100;
+      const y = Math.random() * 200 - 100;
+      const z = Math.random() * 200 - 100;
+      
+      // Create text sprite
+      const color = node.id === "term" ? '#00FF00' : '#6495ED';
+      const textSprite = createTextSprite(node.id, color);
+      textSprite.position.set(x, y, z);
+      textSprite.userData = { id: node.id, index: node.index, links: [] };
+      
+      // Store initial physics values
+      textSprite.userData.velocity = new THREE.Vector3(0, 0, 0);
+      textSprite.userData.acceleration = new THREE.Vector3(0, 0, 0);
+      
+      nodeGroup.add(textSprite);
+      nodeObjects.push(textSprite);
+    });
+    
+    scene.add(nodeGroup);
+
+    // Create links as lines
+    const linkObjects = [];
+    const linkGroup = new THREE.Group();
+    
+    links.forEach(link => {
+      const sourceNode = nodeObjects[link.source];
+      const targetNode = nodeObjects[link.target];
+      
+      // Add link reference to nodes
+      sourceNode.userData.links.push(link.target);
+      
+      // Create line geometry
+      const geometry = new THREE.BufferGeometry();
+      const lineMaterial = new THREE.LineBasicMaterial({ 
+        color: 0xAAAAAA, 
+        transparent: true, 
+        opacity: 0.5 
+      });
+      
+      // Initial positions (will be updated in animation)
+      const positions = new Float32Array([
+        sourceNode.position.x, sourceNode.position.y, sourceNode.position.z,
+        targetNode.position.x, targetNode.position.y, targetNode.position.z
+      ]);
+      
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      
+      const line = new THREE.Line(geometry, lineMaterial);
+      line.userData = { 
+        sourceIndex: link.source, 
+        targetIndex: link.target 
+      };
+      
+      linkGroup.add(line);
+      linkObjects.push(line);
+    });
+    
+    scene.add(linkGroup);
+
+    // Raycasting for node interaction
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let selectedNode = null;
+    let hoveredNode = null;
+
+    // Add orbit controls with inertia
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let rotation = { x: 0, y: 0 };
+    let rotationVelocity = { x: 0, y: 0 };
+    let lastDragTime = 0;
+    const DRAG_TIMEOUT = 100; // ms to consider for velocity calculation
+    const MAX_ROTATION_VELOCITY = 0.05; // Maximum rotation velocity
+    const INERTIA_DECAY = 0.98; // Decay factor for inertia (0-1)
+    
+    document.addEventListener('mousedown', event => {
+      isDragging = true;
+      previousMousePosition = { x: event.clientX, y: event.clientY };
+      rotationVelocity = { x: 0, y: 0 }; // Reset velocity on new drag
+      lastDragTime = Date.now();
+    });
+    
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        // Calculate final velocity based on recent movement
+        const timeDelta = (Date.now() - lastDragTime) / 1000; // Convert to seconds
+        if (timeDelta < 0.3) { // Only apply inertia for quick releases
+          // Velocity already calculated during mousemove
+        } else {
+          rotationVelocity = { x: 0, y: 0 }; // Reset if release was slow
+        }
+      }
+    });
+    
+    document.addEventListener('mousemove', event => {
+      // Update mouse position for raycasting
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      
+      // Handle dragging for orbit control
+      if (isDragging) {
+        const currentTime = Date.now();
+        const deltaTime = (currentTime - lastDragTime) / 1000; // Convert to seconds
+        lastDragTime = currentTime;
+        
+        const deltaMove = {
+          x: event.clientX - previousMousePosition.x,
+          y: event.clientY - previousMousePosition.y
+        };
+        
+        if (deltaTime > 0) {
+          // Calculate instantaneous velocity
+          rotationVelocity.x = (deltaMove.y * 0.01) / deltaTime;
+          rotationVelocity.y = (deltaMove.x * 0.01) / deltaTime;
+          
+          // Cap maximum velocity
+          rotationVelocity.x = Math.max(Math.min(rotationVelocity.x, MAX_ROTATION_VELOCITY), -MAX_ROTATION_VELOCITY);
+          rotationVelocity.y = Math.max(Math.min(rotationVelocity.y, MAX_ROTATION_VELOCITY), -MAX_ROTATION_VELOCITY);
+        }
+        
+        // Update rotation directly during drag
+        rotation.x += deltaMove.y * 0.01;
+        rotation.y += deltaMove.x * 0.01;
+        
+        nodeGroup.rotation.x = rotation.x;
+        nodeGroup.rotation.y = rotation.y;
+        linkGroup.rotation.x = rotation.x;
+        linkGroup.rotation.y = rotation.y;
+        
+        previousMousePosition = { x: event.clientX, y: event.clientY };
+      }
+    });
+    
+    // Zoom with scroll wheel
+    document.addEventListener('wheel', event => {
+      const zoomSpeed = 0.1;
+      camera.position.z += event.deltaY * zoomSpeed;
+      // Limit zoom range
+      camera.position.z = Math.max(50, Math.min(camera.position.z, 500));
+    });
+
+    // Force simulation parameters
+    const REPULSION_STRENGTH = 2000;
+    const SPRING_STRENGTH = 0.05;
+    const DAMPING = 0.85;
+    const MIN_DISTANCE = 20; // Prevent nodes from getting too close
+    const CENTER_GRAVITY = 0.03;
+
+    // Force-directed layout algorithm
+    function updateForces() {
+      // Reset forces
+      nodeObjects.forEach(node => {
+        node.userData.acceleration = new THREE.Vector3(0, 0, 0);
+      });
+      
+      // Repulsive forces between all node pairs
+      for (let i = 0; i < nodeObjects.length; i++) {
+        const nodeA = nodeObjects[i];
+        
+        // Center gravity force (pull towards origin)
+        const centerDir = new THREE.Vector3().copy(nodeA.position).negate().normalize();
+        const gravityForce = centerDir.multiplyScalar(CENTER_GRAVITY * nodeA.position.length());
+        nodeA.userData.acceleration.add(gravityForce);
+        
+        for (let j = i + 1; j < nodeObjects.length; j++) {
+          const nodeB = nodeObjects[j];
+          
+          // Calculate direction and distance
+          const direction = new THREE.Vector3().subVectors(nodeA.position, nodeB.position);
+          let distance = direction.length();
+          
+          // Prevent division by zero or very small values
+          if (distance < 0.1) {
+            distance = 0.1;
+            // Add random jitter to prevent nodes from sticking
+            direction.set(
+              Math.random() * 2 - 1,
+              Math.random() * 2 - 1,
+              Math.random() * 2 - 1
+            ).normalize().multiplyScalar(0.1);
+          }
+          
+          // Calculate repulsive force (inverse square law)
+          const repulsionForce = REPULSION_STRENGTH / (distance * distance);
+          const repulsionVector = direction.clone().normalize().multiplyScalar(repulsionForce);
+          
+          // Apply forces to both nodes
+          nodeA.userData.acceleration.add(repulsionVector);
+          nodeB.userData.acceleration.sub(repulsionVector);
+        }
+      }
+      
+      // Attractive forces between connected nodes
+      linkObjects.forEach(link => {
+        const sourceNode = nodeObjects[link.userData.sourceIndex];
+        const targetNode = nodeObjects[link.userData.targetIndex];
+        
+        const direction = new THREE.Vector3().subVectors(sourceNode.position, targetNode.position);
+        const distance = direction.length();
+        
+        // Spring force proportional to distance
+        const attractiveForce = SPRING_STRENGTH * distance;
+        const attractionVector = direction.clone().normalize().multiplyScalar(attractiveForce);
+        
+        // Apply opposite forces to source and target
+        sourceNode.userData.acceleration.sub(attractionVector);
+        targetNode.userData.acceleration.add(attractionVector);
+      });
+      
+      // Update velocities and positions
+      nodeObjects.forEach(node => {
+        // Apply acceleration to velocity with damping
+        node.userData.velocity.add(node.userData.acceleration);
+        node.userData.velocity.multiplyScalar(DAMPING);
+        
+        // Apply velocity to position
+        node.position.add(node.userData.velocity);
+      });
+      
+      // Update link positions
+      linkObjects.forEach(link => {
+        const sourceNode = nodeObjects[link.userData.sourceIndex];
+        const targetNode = nodeObjects[link.userData.targetIndex];
+        
+        const positions = link.geometry.attributes.position;
+        positions.setXYZ(0, sourceNode.position.x, sourceNode.position.y, sourceNode.position.z);
+        positions.setXYZ(1, targetNode.position.x, targetNode.position.y, targetNode.position.z);
+        positions.needsUpdate = true;
+      });
+    }
+
+    // Handle node hover
+    function checkHover() {
+      // Reset previous hover state
+      if (hoveredNode && hoveredNode !== selectedNode) {
+        if (hoveredNode.userData.id === "term") {
+          hoveredNode.material.map.dispose();
+          hoveredNode.material.map = createTextSprite(hoveredNode.userData.id, '#00FF00').material.map;
+        } else {
+          hoveredNode.material.map.dispose();
+          hoveredNode.material.map = createTextSprite(hoveredNode.userData.id, '#6495ED').material.map;
+        }
+        hoveredNode.material.needsUpdate = true;
+      }
+      
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(nodeObjects);
+      
+      if (intersects.length > 0) {
+        hoveredNode = intersects[0].object;
+        if (hoveredNode !== selectedNode) {
+          hoveredNode.material.map.dispose();
+          hoveredNode.material.map = createTextSprite(hoveredNode.userData.id, '#FF4500').material.map;
+          hoveredNode.material.needsUpdate = true;
+        }
+        
+        document.getElementById('selected-node').textContent = hoveredNode.userData.id;
+        
+        // Highlight connections
+        linkObjects.forEach(link => {
+          if (link.userData.sourceIndex === hoveredNode.userData.index || 
+              link.userData.targetIndex === hoveredNode.userData.index) {
+            link.material.color.set(0xFF4500);
+            link.material.opacity = 1.0;
+          } else {
+            link.material.color.set(0xAAAAAA);
+            link.material.opacity = 0.2;
+          }
+        });
+      } else {
+        hoveredNode = null;
+        document.getElementById('selected-node').textContent = "None";
+        
+        // Reset link colors
+        linkObjects.forEach(link => {
+          link.material.color.set(0xAAAAAA);
+          link.material.opacity = 0.5;
+        });
+      }
+    }
+
+    // Animation loop
+    let iterationCount = 0;
+    const MAX_ITERATIONS = 500;
+    
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      // Run force simulation for first 300 frames to stabilize
+      if (iterationCount < MAX_ITERATIONS) {
+        updateForces();
+        iterationCount++;
+      }
+      
+      // Apply rotational inertia when not dragging
+      if (!isDragging && (Math.abs(rotationVelocity.x) > 0.0001 || Math.abs(rotationVelocity.y) > 0.0001)) {
+        rotation.x += rotationVelocity.x;
+        rotation.y += rotationVelocity.y;
+        
+        nodeGroup.rotation.x = rotation.x;
+        nodeGroup.rotation.y = rotation.y;
+        linkGroup.rotation.x = rotation.x;
+        linkGroup.rotation.y = rotation.y;
+        
+        // Apply decay to gradually slow down
+        rotationVelocity.x *= INERTIA_DECAY;
+        rotationVelocity.y *= INERTIA_DECAY;
+        
+        // Stop very small rotations to prevent endless tiny movements
+        if (Math.abs(rotationVelocity.x) < 0.0001) rotationVelocity.x = 0;
+        if (Math.abs(rotationVelocity.y) < 0.0001) rotationVelocity.y = 0;
+      }
+      
+      // Check for node hover
+      checkHover();
+      
+      renderer.render(scene, camera);
+    }
+    
+    animate();
